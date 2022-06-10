@@ -5,6 +5,14 @@ const OffTrTemplate = new mongoose.Schema({
         type:String,
         required:true
     },
+    mob:{
+        type:String,
+        required:true
+    },
+    email:{
+        type:String,
+        required:true
+    },
     reqCopies:{
         type:String,
         required:true
@@ -18,8 +26,18 @@ const OffTrTemplate = new mongoose.Schema({
         required:true
     },
     date:{
-        type:Date,
+        type:String,
         default:Date.now
+    },
+    status: {
+        type: String,
+        default: "UNCHECK"
+        
+    },
+    msg: {
+        type: String,
+        default: ""
+        
     }
 })
 

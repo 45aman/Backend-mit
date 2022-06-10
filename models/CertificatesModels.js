@@ -5,6 +5,14 @@ const CertificatesTemplate = new mongoose.Schema({
         type: String,
         required: true
     },
+    mobileno: {
+        type: String,
+        required: true
+    },
+    gmail: {
+        type: String,
+        required: true
+    },
     trino: {
         type: String,
         required: true
@@ -14,8 +22,24 @@ const CertificatesTemplate = new mongoose.Schema({
         required: true
     },
     date: {
-        type: Date,
-        default: Date.now
+        
+        default: Date.now(),
+        type : String
+    },
+    status: {
+        type: String,
+        default: "UNCHECK"
+        
+    },
+    msg: {
+        type: String,
+        default: ""
+        
+    },
+    remark: {
+        type: String,
+        default: ""
+        
     }
 })
 

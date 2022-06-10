@@ -5,12 +5,46 @@ const encrypt = require('mongoose-encryption')
 const mg = require('mailgun-js');
 const routesCerti = require('./routes/routescertificate')
 const routesOffTr = require('./routes/routesofftr')
+const routesConGC = require('./routes/routesConGC')
+const routesTriToSem = require('./routes/routesTriToSem')
+const routesOQ = require('./routes/routesOQ')
+const routesEquC = require('./routes/routesEquC')
+const routesDupGC = require('./routes/routesDupGC')
+
+
+
+
 
 
 const dotenv = require('dotenv')
 const cors = require('cors')
 const md5 = require('md5');
 const DateOnly = require('mongoose-dateonly')(mongoose);
+const nodemailer = require('nodemailer')
+const { google } = require('googleapis');
+const { log } = require('npmlog');
+
+const Razorpay = require('razorpay')
+const shortid = require('shortid')
+
+
+const CLIENT_ID = "565242842065-4s2bftfd2b5k0c2adu5oangghhirkhgv.apps.googleusercontent.com"
+const CLIENT_SECRET = "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"
+const REDIRECT_URL = "https://developers.google.com/oauthplayground"
+const REFRESH_TOKEN = "1//04c7kJviy7JpeCgYIARAAGAQSNwF-L9IrH8OAM5OG1GlbHgnkJp_eYUWL07J56XZzZhn4azbUmx1UIIbybW8U9Wm9WnajaAO1vvo"
+//const ACCESSTOKEN = 'ya29.A0ARrdaM_8RDj3iJd42dEJTUbPy-F5qgffu8xkA93XXYiTnn7jNaiEsjD0L0T_i1EEcAMpLyUAOB2gsyoXxopQumQ0W7QsMmiwEouRojRor36zofFOG4RnvU5JB20CGHj5UO_xyqDAWYATfW66DJst2ehtyQjZNQ'
+
+const oAuth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL)
+oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN })
+
+
+
+
+
+
+
+
+
 
 
 app.use(express.json())
@@ -21,11 +55,35 @@ app.use(cors())
 
 dotenv.config()
 
-const mailgun = () =>
-    mg({
-        apiKey: process.env.MAILGUN_API_KEY,
-        domain: process.env.MAILGUN_DOMIAN,
-    });
+
+//Payment
+const razorpay = new Razorpay({ key_id: 'rzp_test_NCgVjDkvV1r7jm', key_secret: 'f4zHn6ocSmmvy5hMyVCHNQKM' })
+
+app.post('/razorpay', async (req,res) => {
+
+  const payment_capture = 1
+  const amount = 200
+  const currency = 'INR'
+  
+  const options = {
+    amount: amount * 100,
+    currency,
+    receipt: shortid.generate() ,
+    payment_capture 
+  }  
+
+  const response = await razorpay.orders.create(options)
+
+  console.log(response)
+  res.json({
+    id : response.id,
+    currency: response.currency,
+    amount: response.amount
+  })
+})
+
+
+
 
 const DB = process.env.DB
 
@@ -98,16 +156,100 @@ app.post("/register", (req, res) => {
 
 
 
-app.get("/getstudent", async(req, res)=>{
+app.get("/getstudent", async(req, res) => {
     try {
         const studata = await Student.find();
         res.status(201).json(studata)
-        console.log(studata)
+       // console.log(studata)
     } catch (error) {
         res.status(422).json(error);
-        console.log(error);
     }
 })
+
+app.get("/getstudent/:id", async(req, res) => {
+    try {
+
+
+        const { id } = req.params;
+
+        const studentindividual = await Student.find({prn:id});
+        //console.log(studentindividual);
+        res.status(201).json(studentindividual)
+    } catch (error) {
+        res.status(422).json(error);
+    }
+})
+
+
+app.post("/getdepartment", (req, res) => {
+    const { specialization , subject, msg } = req.body
+
+    const Sub = subject
+    console.log(Sub);
+    const Msg = msg
+    console.log(Msg);
+
+    Student.find({ specialization: specialization }, (err, students) => {
+        if (students) {
+            res.send({ message: "Student Department wise" })
+
+            const Emails = students.map(function(student){return student.email;});
+
+            console.log(Emails);
+
+
+            const html = "<b>"+Msg+"</b>"
+            console.log(html);
+
+            async function sendMail() {
+                try {
+                    const accessToken = await oAuth2Client.getAccessToken()
+                    const token = accessToken.token;
+        
+                    const transport = nodemailer.createTransport({
+        
+                        service: 'gmail',
+        
+                        auth: {
+                            type: 'OAuth2',
+                            user: '45amanshaikh@gmail.com',
+                            clientId: CLIENT_ID,
+                            clientSecret: CLIENT_SECRET,
+                            refresh_token: REFRESH_TOKEN,
+                            accessToken: token
+                        },
+                    });
+                    const mailOptions = {
+                        from: "<45amanshaikh@gmail.com>", // sender address
+                        to: Emails, // list of receivers
+                        subject: Sub, // Subject line
+                        text: Msg, // plain text body
+                        html: html, // html body
+                    };
+        
+                    const result = await transport.sendMail(mailOptions)
+                    return result
+        
+                } catch (error) {
+                    return error
+                }
+        
+            }
+            sendMail()
+                .then(result => console.log('Email sent...', result))
+                .catch((error) => console.log(error.message));
+        
+        
+        
+
+
+        } else {
+
+        }
+    })
+
+})
+
 
 
 const staffSchema = new mongoose.Schema({
@@ -229,9 +371,11 @@ app.post("/registeradmin", (req, res) => {
 
 const timetableSchema = new mongoose.Schema({
     department: String,
+    year: String,
     trimester: String,
+    program: String,
     type: String,
-    date: DateOnly,
+    date: String,
     ttfile: String,
 
 })
@@ -239,24 +383,93 @@ const timetableSchema = new mongoose.Schema({
 const Timetable = new mongoose.model("Timetable", timetableSchema)
 
 app.post("/timetableadd", (req, res) => {
-    const { department, trimester, type, date, ttfile } = req.body
+    const { department,year, trimester,program, type, date, ttfile } = req.body
+
+
+
+    Student.find({ program: department }, (err, students) => {
+        if (students) {
+            res.send({ message: "Student Department wise" })
+
+            const Emails = students.map(function(student){return student.email;});
+
+            console.log(Emails);
+
+
+            async function sendMail() {
+                try {
+                    const accessToken = await oAuth2Client.getAccessToken()
+                    const token = accessToken.token;
+        
+                    const transport = nodemailer.createTransport({
+        
+                        service: 'gmail',
+        
+                        auth: {
+                            type: 'OAuth2',
+                            user: '45amanshaikh@gmail.com',
+                            clientId: CLIENT_ID,
+                            clientSecret: CLIENT_SECRET,
+                            refresh_token: REFRESH_TOKEN,
+                            accessToken: token
+                        },
+                    });
+                    const mailOptions = {
+                        from: "<45amanshaikh@gmail.com>", // sender address
+                        to: Emails, // list of receivers
+                        subject: "Timetable Declare", // Subject line
+                        text: "Pl check Timetable on website", // plain text body
+                    };
+        
+                    const result = await transport.sendMail(mailOptions)
+                    return result
+        
+                } catch (error) {
+                    return error
+                }
+        
+            }
+            sendMail()
+                .then(result => console.log('Email sent...', result))
+                .catch((error) => console.log(error.message));
+        
+        
+        
+
+
+        } else {
+
+        }
+    })
+
+
+
+
 
     const timetable = new Timetable({
         department,
+        year,
         trimester,
+        program,
         type,
         date,
         ttfile
-
     })
     timetable.save(err => {
         if (err) {
             res.send(err)
         } else {
             res.send({ message: "Successfully Uploaded" })
-
+            
         }
+            
+        
+
+        
+
+        
     })
+
 
 })
 
@@ -269,6 +482,8 @@ app.get("/getdata", async(req, res) => {
         res.status(422).json(error);
     }
 })
+
+
 
 app.delete("/deletetimetable/:id", async(req, res) => {
     try {
@@ -380,7 +595,7 @@ app.get("/getresultdata", async(req, res) => {
     try {
         const resultdata = await Result.find();
         res.status(201).json(resultdata)
-        console.log(resultdata)
+        //console.log(resultdata)
     } catch (error) {
         res.status(422).json(error);
     }
@@ -393,7 +608,7 @@ app.delete("/deleteresult/:id", async(req, res) => {
         const { id } = req.params;
 
         const resultsolo = await Result.findByIdAndDelete({ _id: id });
-        console.log(resultsolo);
+        //console.log(resultsolo);
         res.status(201).json(resultsolo)
     } catch (error) {
         res.status(422).json(error);
@@ -429,13 +644,14 @@ app.post("/faqadd", (req, res) => {
         }
     })
 
+
 })
 
 app.get("/getfaqdata", async(req, res) => {
     try {
         const faqdata = await Faq.find();
         res.status(201).json(faqdata)
-        console.log(faqdata)
+       // console.log(faqdata)
     } catch (error) {
         res.status(422).json(error);
     }
@@ -457,41 +673,55 @@ app.post("/updatefaq", async(req, res) => {
     })
     const faqdata = await Faq.findByIdAndUpdate(_id, { $set: req.body }, newdata);
     res.status(201).json(faqdata)
-    console.log(faqdata)
+    //console.log(faqdata)
 
 })
 
 
+const DivSchema = new mongoose.Schema({
+    prn: Number,
+    email: String,
+    mob: Number,
+    requirement: [{
+        value: Number,
+        label: String
+      }]
+})
+
+const Div = new mongoose.model("Div", DivSchema)
+
+app.post("/Div", (req, res) => {
+    const { prn, email, mob, requirement } = req.body
+
+    const div = new Div({
+        prn,
+        email,
+        mob,
+        requirement
+    })
+    console.log(div);
+    div.save(err => {
+        if (err) {
+            res.send(err)
+        } else {
+            res.send({ message: "Successfully Uploaded" })
+
+        }
+    })
 
 
-app.post('/api/email', (req, res) => {
-    const { email, subject, message } = req.body;
-    mailgun()
-        .messages()
-        .send({
-                from: 'abc <examdepartment@mitwpu.edu.in>',
-                to: `${email}`,
-                subject: `${subject}`,
-                html: `<p>${message}</p>`,
-            },
-            (error, body) => {
-                if (error) {
-                    console.log(error);
-                    res.status(500).send({ message: 'Error in sending email' });
-                } else {
-                    console.log(body);
-                    res.send({ message: 'Email sent successfully' });
-                }
-            }
-        );
-});
-
-
-
-
-
+})
 app.use('/app', routesCerti)
 app.use('/app', routesOffTr)
+app.use('/app', routesConGC)
+app.use('/app', routesTriToSem)
+app.use('/app', routesOQ)
+app.use('/app', routesEquC)
+app.use('/app', routesDupGC)
+
+
+
+
 
 
 
